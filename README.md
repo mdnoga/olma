@@ -1,3 +1,3 @@
-#OLMA
+# OLMA
 
 OpenCode Local Model Assitant 
