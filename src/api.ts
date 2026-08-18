@@ -17,6 +17,11 @@ export interface ProviderHealth {
 	modelCount?: number;
 }
 
+function buildModelsEndpoint(baseURL: string): string {
+	const base = baseURL.replace(/\/$/, '').replace(/\/v1$/, '');
+	return `${base}/v1/models`;
+}
+
 function extractApiErrorMessage(err: unknown, context: string): string {
 	if (err instanceof Error) {
 		let msg = err.message;
@@ -55,8 +60,7 @@ function extractApiErrorMessage(err: unknown, context: string): string {
 }
 
 export async function discoverModels(baseURL: string, apiKey?: string): Promise<DiscoveredModel[]> {
-	const normalizedURL = baseURL.replace(/\/$/, '');
-	const url = `${normalizedURL}/v1/models`;
+	const url = buildModelsEndpoint(baseURL);
 	const headers: Record<string, string> = {
 		'Content-Type': 'application/json',
 	};
@@ -109,14 +113,13 @@ export async function discoverModels(baseURL: string, apiKey?: string): Promise<
 
 export async function checkProviderHealth(baseURL: string, apiKey?: string): Promise<ProviderHealth> {
 	try {
-		const normalizedURL = baseURL.replace(/\/$/, '');
-		const url = `${normalizedURL}/v1/models`;
-		const headers: Record<string, string> = {};
-		if (apiKey && apiKey !== 'dummy-key') {
-			headers['Authorization'] = `Bearer ${apiKey}`;
-		}
+		const url = buildModelsEndpoint(baseURL);
+	const headers: Record<string, string> = {};
+	if (apiKey && apiKey !== 'dummy-key') {
+		headers['Authorization'] = `Bearer ${apiKey}`;
+	}
 
-		logDebug(`checkProviderHealth: GET ${url}`);
+	logDebug(`checkProviderHealth: GET ${url}`);
 
 		const controller = new AbortController();
 		const timeoutId = setTimeout(() => controller.abort(), 5000);
