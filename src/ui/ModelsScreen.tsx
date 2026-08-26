@@ -23,6 +23,7 @@ interface ModelsScreenProps {
 	onRemoveModel: (providerId: string, modelId: string) => void;
 	onSave: () => void;
 	onBack: () => void;
+	onQuit: () => void;
 }
 
 type ModelFormMode = 'list' | 'add';
@@ -45,9 +46,10 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 	onDiscoverModels,
 	onAddModel,
 	onRemoveModel,
-	onSave,
-	onBack,
-}) => {
+ 	onSave,
+ 	onBack,
+ 	onQuit,
+ }) => {
 	const [formMode, setFormMode] = useState<ModelFormMode>('list');
 	const [listIndex, setListIndex] = useState(0);
 	const [formValues, setFormValues] = useState<Record<string, string>>({});
@@ -166,7 +168,9 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 			}
 		} else if (input === 's') {
 			onSave();
-		} else if (key.escape) {
+		} else if (input === 'q') {
+			onQuit();
+		} else if (input === 'b' || key.escape) {
 			onBack();
 		}
 	});
@@ -273,6 +277,7 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 					<Text color={unsavedChanges ? 'yellow' : 'white'}>
 						{'  [s] Save Config'} {unsavedChanges ? '(unsaved)' : ''}
 					</Text>
+					<Text color="white">  [q] Quit</Text>
 					<Text color="white">  [b] Back</Text>
 				</Box>
 			</Box>

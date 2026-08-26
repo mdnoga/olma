@@ -12,6 +12,7 @@ interface EnvScreenProps {
 	error: string | null;
 	onSaveEnv: (env: Record<string, string>) => void;
 	onBack: () => void;
+	onQuit: () => void;
 }
 
 type EnvFormMode = 'list' | 'add';
@@ -24,6 +25,7 @@ export const EnvScreen: FC<EnvScreenProps> = ({
 	error,
 	onSaveEnv,
 	onBack,
+	onQuit,
 }) => {
 	const [listIndex, setListIndex] = useState(0);
 	const [formMode, setFormMode] = useState<EnvFormMode>('list');
@@ -106,7 +108,9 @@ export const EnvScreen: FC<EnvScreenProps> = ({
 					onSaveEnv(newEnv);
 				}
 			}
-		} else if (input === 'q' || key.escape) {
+		} else if (input === 'q') {
+			onQuit();
+		} else if (input === 'b' || key.escape) {
 			onBack();
 		}
 	});
@@ -183,7 +187,8 @@ export const EnvScreen: FC<EnvScreenProps> = ({
 					<Text color={envVars && Object.keys(envVars).length > 0 ? 'yellow' : 'white'}>
 						{'  [s] Save .env'}
 					</Text>
-					<Text color="white">  [q] Back</Text>
+					<Text color="white">  [q] Quit</Text>
+					<Text color="white">  [b] Back</Text>
 				</Box>
 			</Box>
 		</Box>

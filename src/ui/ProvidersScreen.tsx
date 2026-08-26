@@ -27,6 +27,7 @@ interface ProvidersScreenProps {
 	onDeleteProvider: (providerId: string) => void;
 	onDiscoverModels: (providerId: string) => void;
 	onBack: () => void;
+	onQuit: () => void;
 }
 
 type FormMode = 'list' | 'add' | 'edit';
@@ -54,6 +55,7 @@ export const ProvidersScreen: FC<ProvidersScreenProps> = ({
 	onDeleteProvider,
 	onDiscoverModels,
 	onBack,
+	onQuit,
 }) => {
 	const [mode, setMode] = useState<FormMode>('list');
 	const [formValues, setFormValues] = useState<Record<string, string>>({});
@@ -170,7 +172,9 @@ export const ProvidersScreen: FC<ProvidersScreenProps> = ({
 			}
 		} else if (input === 's') {
 			onSave();
-		} else if (key.escape) {
+		} else if (input === 'q') {
+			onQuit();
+		} else if (input === 'b' || key.escape) {
 			onBack();
 		}
 	});
@@ -278,6 +282,7 @@ export const ProvidersScreen: FC<ProvidersScreenProps> = ({
 					<Text color={unsavedChanges ? 'yellow' : 'white'}>
 						{'  [s] Save Config'} {unsavedChanges ? '(unsaved)' : ''}
 					</Text>
+					<Text color="white">  [q] Quit</Text>
 					<Text color="white">  [b] Back to Home</Text>
 				</Box>
 			</Box>
