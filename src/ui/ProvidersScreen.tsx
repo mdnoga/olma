@@ -1,7 +1,7 @@
 import { useInput } from 'ink';
 import { useState, type FC } from 'react';
 import { Box, Text } from 'ink';
-import { getProviders, getProviderModels, getProviderBaseURL, getProviderApiKey, getProviderPackage, isConfigV2 } from '../config';
+import { getProviders, getProviderModels, getProviderBaseURL, getProviderBaseURLRaw, getProviderApiKeyRaw, getProviderPackage, isConfigV2 } from '../config';
 import type { OpencodeConfig, Screen } from '../types';
 
 interface ProviderFormData {
@@ -149,12 +149,14 @@ export const ProvidersScreen: FC<ProvidersScreenProps> = ({
 				const provider = providers[id];
 				if (provider) {
 					setMode('edit');
+					// Raw values so `{env:...}` references survive the round-trip
+					// instead of being written back as resolved secrets.
 					setFormValues({
 						id,
 						name: provider.name ?? '',
 						npm: getProviderPackage(provider) ?? '',
-						baseURL: getProviderBaseURL(provider) ?? '',
-						apiKey: getProviderApiKey(provider) ?? '',
+						baseURL: getProviderBaseURLRaw(provider) ?? '',
+						apiKey: getProviderApiKeyRaw(provider) ?? '',
 					});
 					setActiveField(0);
 				}

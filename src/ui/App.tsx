@@ -260,6 +260,7 @@ export const App: FC = () => {
 				setScreen('models' as Screen);
 				setSelectedProvider(providerId);
 				setSelectedModel(null);
+				setStatusMessage(`Discovered ${models.length} model(s) from "${providerId}"`);
 			} catch (err) {
 				setError(err instanceof Error ? err.message : 'Failed to discover models');
 				setDiscoveredModels([]);

@@ -106,6 +106,16 @@ export function getProviderApiKey(provider: ProviderConfig): string | undefined 
 	return raw ? resolveEnvReferences(raw) : undefined;
 }
 
+// Raw (unresolved) accessors for editing: forms must round-trip `{env:...}`
+// references instead of writing resolved secrets back into the config.
+export function getProviderBaseURLRaw(provider: ProviderConfig): string | undefined {
+	return provider.options?.baseURL ?? provider.settings?.baseURL;
+}
+
+export function getProviderApiKeyRaw(provider: ProviderConfig): string | undefined {
+	return provider.options?.apiKey ?? provider.settings?.apiKey;
+}
+
 export function getProviderPackage(provider: ProviderConfig): string | undefined {
 	return provider.npm ?? provider.package;
 }

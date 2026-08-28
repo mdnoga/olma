@@ -26,7 +26,6 @@ interface HomeScreenProps {
 	onQuit: () => void;
 	onDiscoverModels: (providerId: string) => void;
 	providerLoading: boolean;
-	discoveredModels: import('../types').DiscoveredModel[];
 }
 
 export const HomeScreen: FC<HomeScreenProps> = ({
@@ -40,7 +39,6 @@ export const HomeScreen: FC<HomeScreenProps> = ({
 	providerHealth,
 	setProviderHealth,
 	providerLoading,
-	discoveredModels,
 	onSave,
 	onQuit,
 	onDiscoverModels,
@@ -113,16 +111,6 @@ export const HomeScreen: FC<HomeScreenProps> = ({
 			{providerLoading && (
 				<Box marginBottom={1}>
 					<Text color="yellow">⟳ Discovering models...</Text>
-				</Box>
-			)}
-
-			{providerLoading && discoveredModels.length > 0 && (
-				<Box margin={1}>
-					<Text color="cyan">
-						{' '}
-						Found {discoveredModels.length} model(s) from{' '}
-						{selectedProvider ?? 'selected provider'}
-					</Text>
 				</Box>
 			)}
 

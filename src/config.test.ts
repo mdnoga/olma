@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { updateProviderConfig, buildModelList } from './config';
+import { updateProviderConfig, buildModelList, getProviderBaseURLRaw, getProviderApiKeyRaw } from './config';
 import type { OpencodeConfig, DiscoveredModel, ModelConfig } from './types';
 
 describe('updateProviderConfig', () => {
@@ -103,5 +103,23 @@ describe('buildModelList', () => {
 		const list = buildModelList([], configured);
 		expect(list.map((e) => e.id)).toEqual(['model-b', 'model-stale']);
 		expect(list.every((e) => !e.onServer && e.inConfig)).toBe(true);
+	});
+});
+
+describe('raw provider getters', () => {
+	const provider = {
+		npm: '@ai-sdk/openai-compatible',
+		options: { baseURL: '{env:OLMA_BASE_URL}', apiKey: '{env:OLMA_API_KEY}' },
+	};
+
+	test('return env references unresolved for form round-tripping', () => {
+		expect(getProviderBaseURLRaw(provider)).toBe('{env:OLMA_BASE_URL}');
+		expect(getProviderApiKeyRaw(provider)).toBe('{env:OLMA_API_KEY}');
+	});
+
+	test('read v2 settings when options are absent', () => {
+		const v2 = { package: 'aisdk:@ai-sdk/openai-compatible', settings: { baseURL: '{env:B}', apiKey: 'plain' } };
+		expect(getProviderBaseURLRaw(v2)).toBe('{env:B}');
+		expect(getProviderApiKeyRaw(v2)).toBe('plain');
 	});
 });
