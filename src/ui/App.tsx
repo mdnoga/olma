@@ -16,7 +16,7 @@ import {
 	updateProviderConfig,
 	createModelConfig,
 } from '../config';
-import { discoverModels } from '../api';
+import { discoverModels, logDebug } from '../api';
 import type {
 	OpencodeConfig,
 	Screen,
@@ -300,6 +300,7 @@ export const App: FC = () => {
 	}, []);
 
 	const handleQuit = useCallback(() => {
+		logDebug('handleQuit: calling exit()');
 		exit();
 	}, [exit]);
 
