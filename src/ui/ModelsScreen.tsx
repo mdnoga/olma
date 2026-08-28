@@ -1,7 +1,7 @@
 import { useInput } from 'ink';
 import { useState, type FC } from 'react';
 import { Box, Text } from 'ink';
-import { getProviders, getProviderModels, getProviderBaseURL } from '../config';
+import { getProviders, getProviderModels, getProviderBaseURL, buildModelList } from '../config';
 import type { OpencodeConfig, Screen, DiscoveredModel } from '../types';
 
 interface ModelsScreenProps {
@@ -21,6 +21,7 @@ interface ModelsScreenProps {
 		params: { name?: string; tools?: boolean; context?: number; output?: number },
 	) => void;
 	onRemoveModel: (providerId: string, modelId: string) => void;
+	onRemoveModels: (providerId: string, modelIds: string[]) => void;
 	onSave: () => void;
 	onBack: () => void;
 	onQuit: () => void;
@@ -46,6 +47,7 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 	onDiscoverModels,
 	onAddModel,
 	onRemoveModel,
+	onRemoveModels,
  	onSave,
  	onBack,
  	onQuit,
@@ -63,7 +65,13 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 	const providerBaseURL = getProviderBaseURL(provider ?? {}) ?? 'not configured';
 	const modelMap = getProviderModels(config, providerId);
 
-	const isModelInConfig = (modelId: string): boolean => modelId in modelMap;
+	const modelList = buildModelList(discoveredModels, modelMap);
+	// Staleness is only meaningful once discovery has returned data;
+	// otherwise every configured model would look "not on server".
+	const hasDiscovered = discoveredModels.length > 0;
+	const staleEntries = hasDiscovered ? modelList.filter((e) => !e.onServer && e.inConfig) : [];
+	const clampListIndex = (removedCount = 1) =>
+		setListIndex((prev) => Math.max(0, Math.min(prev, modelList.length - 1 - removedCount)));
 
 	useInput((input, key) => {
 		if (formMode === 'add') {
@@ -77,7 +85,7 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 				return;
 			}
 			if (key.return) {
-				const model = discoveredModels[listIndex];
+				const model = modelList[listIndex]?.discovered;
 				if (model) {
 					onAddModel(providerId, model.id, model, {
 						name: formValues.name || undefined,
@@ -130,41 +138,42 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 		if (key.upArrow) {
 			setListIndex((prev) => Math.max(0, prev - 1));
 		} else if (key.downArrow) {
-			setListIndex((prev) => Math.min(discoveredModels.length - 1, prev + 1));
+			setListIndex((prev) => Math.min(modelList.length - 1, prev + 1));
 		} else if (key.return) {
-			if (discoveredModels.length > 0) {
-				const model = discoveredModels[listIndex];
-				if (model) {
-					if (isModelInConfig(model.id)) {
-						onRemoveModel(providerId, model.id);
-					} else {
-						setFormValues({ name: model.name ?? model.id, context: '', output: '' });
-						setToolsSupported(true);
-						setActiveField(0);
-						setFormMode('add');
-					}
-				}
-			}
-		} else if (input === 'a') {
-			if (discoveredModels.length > 0) {
-				const model = discoveredModels[listIndex];
-				if (model && !isModelInConfig(model.id)) {
-					setFormValues({ name: model.name ?? model.id, context: '', output: '' });
+			const entry = modelList[listIndex];
+			if (entry) {
+				if (entry.inConfig) {
+					onRemoveModel(providerId, entry.id);
+					if (!entry.onServer) clampListIndex();
+				} else if (entry.discovered) {
+					setFormValues({ name: entry.name, context: '', output: '' });
 					setToolsSupported(true);
 					setActiveField(0);
 					setFormMode('add');
 				}
+			}
+		} else if (input === 'a') {
+			const entry = modelList[listIndex];
+			if (entry?.discovered && !entry.inConfig) {
+				setFormValues({ name: entry.name, context: '', output: '' });
+				setToolsSupported(true);
+				setActiveField(0);
+				setFormMode('add');
 			}
 		} else if (input === 'r') {
 			if (providerId) {
 				onDiscoverModels(providerId);
 			}
 		} else if (input === 'd') {
-			if (discoveredModels.length > 0) {
-				const model = discoveredModels[listIndex];
-				if (model && isModelInConfig(model.id)) {
-					onRemoveModel(providerId, model.id);
-				}
+			const entry = modelList[listIndex];
+			if (entry?.inConfig) {
+				onRemoveModel(providerId, entry.id);
+				if (!entry.onServer) clampListIndex();
+			}
+		} else if (input === 'x') {
+			if (staleEntries.length > 0) {
+				onRemoveModels(providerId, staleEntries.map((e) => e.id));
+				clampListIndex(staleEntries.length);
 			}
 		} else if (input === 's') {
 			onSave();
@@ -208,22 +217,22 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 
 			{!providerId ? (
 				<Text color="gray">  No provider selected.</Text>
-			) : discoveredModels.length === 0 && !providerLoading && !error ? (
+			) : modelList.length === 0 && !providerLoading && !error ? (
 				<Box padding={1}>
 					<Text color="gray">  No models discovered.</Text>
 					<Text color="gray">  Press 'r' to discover models from {providerBaseURL}.</Text>
 				</Box>
-			) : discoveredModels.length > 0 ? (
-				discoveredModels.map((model, i) => {
-					const inConfig = isModelInConfig(model.id);
+			) : modelList.length > 0 ? (
+				modelList.map((entry, i) => {
 					const isSelected = i === listIndex;
-					const cfg = inConfig ? modelMap[model.id] : null;
+					const isStale = hasDiscovered && entry.inConfig && !entry.onServer;
+					const cfg = entry.inConfig ? entry.config : null;
 
 					return (
 						<Box
-							key={model.id}
+							key={entry.id}
 							borderStyle={isSelected ? 'bold' : 'round'}
-							borderColor={isSelected ? 'cyan' : inConfig ? 'green' : 'gray'}
+							borderColor={isSelected ? 'cyan' : isStale ? 'yellow' : entry.inConfig ? 'green' : 'gray'}
 							flexDirection="column"
 							padding={1}
 							marginBottom={1}
@@ -231,19 +240,23 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 							<Box justifyContent="space-between">
 								<Text bold color={isSelected ? 'cyan' : 'white'}>
 									{' '}
-									{model.id}
+									{entry.id}
 								</Text>
-								<Text color={inConfig ? 'green' : 'gray'}>
-									{inConfig ? '✓ in config' : '○ not in config'}
+								<Text color={isStale ? 'yellow' : entry.inConfig ? 'green' : 'gray'}>
+									{isStale
+										? '⚠ in config, not on server'
+										: entry.inConfig
+											? '✓ in config'
+											: '○ not in config'}
 								</Text>
 							</Box>
-							<Text color="gray">  {model.owned_by ?? 'unknown'}</Text>
+							<Text color="gray">  {entry.discovered?.owned_by ?? (isStale ? 'no longer served by endpoint' : 'unknown')}</Text>
 							{cfg && (
 								<Box marginTop={1}>
-									<Text color="gray">  Name: {cfg.name ?? model.id}</Text>
+									<Text color="gray">  Name: {cfg.name ?? entry.id}</Text>
 									<Text color="gray">
 										{'  Tools: '}
-										{cfg.tools ?? cfg.capabilities?.tools ? 'yes' : 'no'}
+										{(cfg.tools ?? cfg.capabilities?.tools) ? 'yes' : 'no'}
 									</Text>
 									{cfg.limit && (
 										<Text color="gray">
@@ -260,7 +273,7 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 				})
 			) : null}
 
-			{providerLoading || discoveredModels.length > 0 || error ? null : (
+			{providerLoading || modelList.length > 0 || error ? null : (
 				<Box padding={1}>
 					<Text color="gray">  Press 'r' to discover models.</Text>
 				</Box>
@@ -273,6 +286,9 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 					<Text color="white">  [Enter] Toggle add/remove</Text>
 					<Text color="white">  [a] Add selected to config</Text>
 					<Text color="white">  [d] Remove from config</Text>
+					{staleEntries.length > 0 && (
+						<Text color="yellow">  [x] Prune {staleEntries.length} stale model(s) not on server</Text>
+					)}
 					<Text color="white">  [r] Refresh / Discover</Text>
 					<Text color={unsavedChanges ? 'yellow' : 'white'}>
 						{'  [s] Save Config'} {unsavedChanges ? '(unsaved)' : ''}
@@ -285,7 +301,7 @@ export const ModelsScreen: FC<ModelsScreenProps> = ({
 	);
 
 	const renderForm = () => {
-		const model = discoveredModels[listIndex];
+		const model = modelList[listIndex]?.discovered;
 		if (!model) return null;
 
 		return (

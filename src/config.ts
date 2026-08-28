@@ -233,6 +233,58 @@ export function createProviderConfig(
 	};
 }
 
+export interface ModelListEntry {
+	id: string;
+	name: string;
+	onServer: boolean;
+	inConfig: boolean;
+	discovered?: DiscoveredModel;
+	config?: ModelConfig;
+}
+
+export function buildModelList(
+	discovered: DiscoveredModel[],
+	configured: Record<string, ModelConfig>,
+): ModelListEntry[] {
+	const entries: ModelListEntry[] = discovered.map((m) => ({
+		id: m.id,
+		name: m.name ?? m.id,
+		onServer: true,
+		inConfig: m.id in configured,
+		discovered: m,
+		config: configured[m.id],
+	}));
+	for (const [id, cfg] of Object.entries(configured)) {
+		if (!discovered.some((m) => m.id === id)) {
+			entries.push({ id, name: cfg.name ?? id, onServer: false, inConfig: true, config: cfg });
+		}
+	}
+	return entries;
+}
+
+export function updateProviderConfig(
+	config: OpencodeConfig,
+	providerId: string,
+	params: {
+		name?: string;
+		baseURL?: string;
+		apiKey?: string;
+		npmPackage?: string;
+		env?: string[];
+	},
+): ProviderConfig {
+	const existing = getProviders(config)[providerId];
+	const updated = createProviderConfig(config, providerId, params);
+	// Keep fields the edit form doesn't manage (models, env, headers, body, ...)
+	const merged: Record<string, unknown> = { ...existing };
+	for (const [key, value] of Object.entries(updated)) {
+		if (value !== undefined) {
+			merged[key] = value;
+		}
+	}
+	return merged as ProviderConfig;
+}
+
 export function createModelConfig(
 	config: OpencodeConfig,
 	discovered: DiscoveredModel,

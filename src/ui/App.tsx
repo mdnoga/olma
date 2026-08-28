@@ -13,6 +13,7 @@ import {
 	saveEnvFile,
 	maskSecret,
 	createProviderConfig,
+	updateProviderConfig,
 	createModelConfig,
 } from '../config';
 import { discoverModels } from '../api';
@@ -119,7 +120,7 @@ export const App: FC = () => {
 	const handleUpdateProvider = useCallback(
 		(data: ProviderFormData) => {
 			if (!config) return;
-			const provider = createProviderConfig(config, data.providerId, {
+			const provider = updateProviderConfig(config, data.providerId, {
 				name: data.name,
 				baseURL: data.baseURL,
 				apiKey: data.apiKey || undefined,
@@ -213,6 +214,29 @@ export const App: FC = () => {
 			setConfig(newConfig);
 			setUnsavedChanges(true);
 			setStatusMessage(`Model "${modelId}" removed from "${providerId}"`);
+		},
+		[config],
+	);
+
+	const handleRemoveModels = useCallback(
+		(providerId: string, modelIds: string[]) => {
+			if (!config || modelIds.length === 0) return;
+			const providers = getProviders(config);
+			const models = providers[providerId]?.models;
+			if (models) {
+				for (const modelId of modelIds) {
+					delete models[modelId];
+				}
+			}
+			const newConfig = { ...config };
+			if (newConfig.providers) {
+				newConfig.providers = { ...providers };
+			} else {
+				newConfig.provider = { ...(newConfig.provider ?? {}), ...providers };
+			}
+			setConfig(newConfig);
+			setUnsavedChanges(true);
+			setStatusMessage(`Removed ${modelIds.length} stale model(s) from "${providerId}"`);
 		},
 		[config],
 	);
@@ -318,6 +342,7 @@ export const App: FC = () => {
 		onDeleteProvider: handleDeleteProvider,
 		onAddModel: handleAddModel,
 		onRemoveModel: handleRemoveModel,
+		onRemoveModels: handleRemoveModels,
 		onDiscoverModels: handleDiscoverModels,
 		onBack: handleBack,
 		onQuit: handleQuit,
