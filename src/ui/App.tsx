@@ -7,14 +7,14 @@ import {
 	backupConfig,
 	getProviderBaseURL,
 	getProviderApiKey,
-	getProviderEnvVars,
 	getEnvVarReferences,
 	loadEnvFile,
 	saveEnvFile,
-	maskSecret,
 	createProviderConfig,
 	updateProviderConfig,
 	createModelConfig,
+	withProvider,
+	withProviderModels,
 } from '../config';
 import { discoverModels, logDebug } from '../api';
 import type {
@@ -101,15 +101,7 @@ export const App: FC = () => {
 				apiKey: data.apiKey || undefined,
 				npmPackage: data.npmPackage || undefined,
 			});
-			const providers = getProviders(config);
-			providers[data.providerId] = provider;
-			const newConfig = { ...config };
-			if (newConfig.providers) {
-				newConfig.providers = { ...providers };
-			} else {
-				newConfig.provider = { ...(newConfig.provider ?? {}), ...providers };
-			}
-			setConfig(newConfig);
+			setConfig(withProvider(config, data.providerId, provider));
 			setUnsavedChanges(true);
 			setScreen('providers');
 			setSelectedProvider(data.providerId);
@@ -126,15 +118,7 @@ export const App: FC = () => {
 				apiKey: data.apiKey || undefined,
 				npmPackage: data.npmPackage || undefined,
 			});
-			const providers = getProviders(config);
-			providers[data.providerId] = provider;
-			const newConfig = { ...config };
-			if (newConfig.providers) {
-				newConfig.providers = { ...providers };
-			} else {
-				newConfig.provider = { ...(newConfig.provider ?? {}), ...providers };
-			}
-			setConfig(newConfig);
+			setConfig(withProvider(config, data.providerId, provider));
 			setUnsavedChanges(true);
 			setScreen('providers');
 		},
@@ -144,15 +128,7 @@ export const App: FC = () => {
 	const handleDeleteProvider = useCallback(
 		(providerId: string) => {
 			if (!config) return;
-			const providers = getProviders(config);
-			delete providers[providerId];
-			const newConfig = { ...config };
-			if (newConfig.providers) {
-				newConfig.providers = { ...providers };
-			} else {
-				newConfig.provider = { ...(newConfig.provider ?? {}), ...providers };
-			}
-			setConfig(newConfig);
+			setConfig(withProvider(config, providerId, undefined));
 			setUnsavedChanges(true);
 			setStatusMessage(`Provider "${providerId}" deleted`);
 			if (selectedProvider === providerId) {
@@ -177,21 +153,7 @@ export const App: FC = () => {
 				context: params.context,
 				output: params.output,
 			});
-			const providers = getProviders(config);
-			if (!providers[providerId]) {
-				providers[providerId] = {};
-			}
-			providers[providerId].models = {
-				...(providers[providerId].models ?? {}),
-				[modelId]: model,
-			};
-			const newConfig = { ...config };
-			if (newConfig.providers) {
-				newConfig.providers = { ...providers };
-			} else {
-				newConfig.provider = { ...(newConfig.provider ?? {}), ...providers };
-			}
-			setConfig(newConfig);
+			setConfig(withProviderModels(config, providerId, (models) => ({ ...models, [modelId]: model })));
 			setUnsavedChanges(true);
 			setStatusMessage(`Model "${modelId}" added to "${providerId}"`);
 		},
@@ -201,17 +163,12 @@ export const App: FC = () => {
 	const handleRemoveModel = useCallback(
 		(providerId: string, modelId: string) => {
 			if (!config) return;
-			const providers = getProviders(config);
-			if (providers[providerId]?.models) {
-				delete providers[providerId].models[modelId];
-			}
-			const newConfig = { ...config };
-			if (newConfig.providers) {
-				newConfig.providers = { ...providers };
-			} else {
-				newConfig.provider = { ...(newConfig.provider ?? {}), ...providers };
-			}
-			setConfig(newConfig);
+			setConfig(
+				withProviderModels(config, providerId, (models) => {
+					delete models[modelId];
+					return models;
+				}),
+			);
 			setUnsavedChanges(true);
 			setStatusMessage(`Model "${modelId}" removed from "${providerId}"`);
 		},
@@ -221,20 +178,14 @@ export const App: FC = () => {
 	const handleRemoveModels = useCallback(
 		(providerId: string, modelIds: string[]) => {
 			if (!config || modelIds.length === 0) return;
-			const providers = getProviders(config);
-			const models = providers[providerId]?.models;
-			if (models) {
-				for (const modelId of modelIds) {
-					delete models[modelId];
-				}
-			}
-			const newConfig = { ...config };
-			if (newConfig.providers) {
-				newConfig.providers = { ...providers };
-			} else {
-				newConfig.provider = { ...(newConfig.provider ?? {}), ...providers };
-			}
-			setConfig(newConfig);
+			setConfig(
+				withProviderModels(config, providerId, (models) => {
+					for (const modelId of modelIds) {
+						delete models[modelId];
+					}
+					return models;
+				}),
+			);
 			setUnsavedChanges(true);
 			setStatusMessage(`Removed ${modelIds.length} stale model(s) from "${providerId}"`);
 		},

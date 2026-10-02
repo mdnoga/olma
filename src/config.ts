@@ -5,20 +5,24 @@ import type { OpencodeConfig, ProviderConfig, ModelConfig, DiscoveredModel } fro
 
 const CONFIG_DIR = join(homedir(), '.config', 'opencode');
 
-export function getConfigPath(): string {
-	return join(CONFIG_DIR, 'opencode.json');
+export function getConfigPath(dir = CONFIG_DIR): string {
+	return join(dir, 'opencode.json');
 }
 
-export function getConfigPathJsonc(): string {
-	return join(CONFIG_DIR, 'opencode.jsonc');
+export function getConfigPathJsonc(dir = CONFIG_DIR): string {
+	return join(dir, 'opencode.jsonc');
 }
 
-export function loadConfig(): OpencodeConfig {
-	const jsonPath = getConfigPath();
-	const jsoncPath = getConfigPathJsonc();
+// The file OpenCode actually reads: `.jsonc` wins when both exist, so saves
+// must go there too or they'd be shadowed on the next load.
+export function getActiveConfigPath(dir = CONFIG_DIR): string {
+	const jsoncPath = getConfigPathJsonc(dir);
+	return existsSync(jsoncPath) ? jsoncPath : getConfigPath(dir);
+}
 
-	const path = existsSync(jsoncPath) ? jsoncPath : (existsSync(jsonPath) ? jsonPath : null);
-	if (!path) {
+export function loadConfig(dir = CONFIG_DIR): OpencodeConfig {
+	const path = getActiveConfigPath(dir);
+	if (!existsSync(path)) {
 		return { $schema: 'https://opencode.ai/config.json' };
 	}
 
@@ -26,21 +30,20 @@ export function loadConfig(): OpencodeConfig {
 	return parseJsonc(content);
 }
 
-export function saveConfig(config: OpencodeConfig): void {
-	const path = getConfigPath();
-	const dir = dirname(path);
-	if (!existsSync(dir)) {
-		mkdirSync(dir, { recursive: true });
+// Note: saving a `.jsonc` file drops its comments; backupConfig keeps the original.
+export function saveConfig(config: OpencodeConfig, dir = CONFIG_DIR): void {
+	const path = getActiveConfigPath(dir);
+	const parent = dirname(path);
+	if (!existsSync(parent)) {
+		mkdirSync(parent, { recursive: true });
 	}
 	const content = JSON.stringify(config, null, 2) + '\n';
 	writeFileSync(path, content, 'utf-8');
 }
 
-export function backupConfig(): string | null {
-	const path = getConfigPath();
-	const jsoncPath = getConfigPathJsonc();
-	const source = existsSync(jsoncPath) ? jsoncPath : (existsSync(path) ? path : null);
-	if (!source) return null;
+export function backupConfig(dir = CONFIG_DIR): string | null {
+	const source = getActiveConfigPath(dir);
+	if (!existsSync(source)) return null;
 
 	const backupPath = `${source}.backup.${Date.now()}`;
 	copyFileSync(source, backupPath);
@@ -53,39 +56,36 @@ export function getProviders(config: OpencodeConfig): Record<string, ProviderCon
 	return {};
 }
 
-export function setProviders(config: OpencodeConfig, providers: Record<string, ProviderConfig>): OpencodeConfig {
-	const useV2 = !!config.providers;
-	if (useV2) {
-		config.providers = { ...providers };
+// Immutable updates: return a new config instead of mutating React state.
+export function withProvider(
+	config: OpencodeConfig,
+	providerId: string,
+	provider: ProviderConfig | undefined,
+): OpencodeConfig {
+	const providers = { ...getProviders(config) };
+	if (provider === undefined) {
+		delete providers[providerId];
 	} else {
-		config.provider = { ...(config.provider ?? {}), ...providers };
+		providers[providerId] = provider;
 	}
-	return config;
+	return isConfigV2(config) ? { ...config, providers } : { ...config, provider: providers };
+}
+
+export function withProviderModels(
+	config: OpencodeConfig,
+	providerId: string,
+	update: (models: Record<string, ModelConfig>) => Record<string, ModelConfig>,
+): OpencodeConfig {
+	const existing = getProviders(config)[providerId] ?? {};
+	return withProvider(config, providerId, {
+		...existing,
+		models: update({ ...existing.models }),
+	});
 }
 
 export function getProviderModels(config: OpencodeConfig, providerId: string): Record<string, ModelConfig> {
 	const providers = getProviders(config);
 	return providers[providerId]?.models ?? {};
-}
-
-export function setProviderModels(
-	config: OpencodeConfig,
-	providerId: string,
-	models: Record<string, ModelConfig>,
-): OpencodeConfig {
-	const providers = getProviders(config);
-	if (!providers[providerId]) {
-		providers[providerId] = {};
-	}
-	providers[providerId].models = { ...models };
-	if (config.providers) {
-		config.providers = { ...providers };
-	} else if (config.provider) {
-		config.provider = { ...providers };
-	} else {
-		config.provider = { ...providers };
-	}
-	return config;
 }
 
 export function isConfigV2(config: OpencodeConfig): boolean {
@@ -172,8 +172,9 @@ export function saveEnvFile(env: Record<string, string>): void {
 
 export function resolveEnvReferences(value: string, env?: Record<string, string>): string {
 	if (!value) return value;
+	let loadedEnv = env;
 	return value.replace(ENV_REF_PATTERN, (_match, varName: string) => {
-		const loadedEnv = env ?? loadEnvFile();
+		loadedEnv ??= loadEnvFile();
 		const resolved = loadedEnv[varName] ?? process.env[varName];
 		return resolved ?? '';
 	});

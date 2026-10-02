@@ -1,5 +1,20 @@
 import { describe, expect, test } from 'bun:test';
-import { updateProviderConfig, buildModelList, getProviderBaseURLRaw, getProviderApiKeyRaw } from './config';
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+	updateProviderConfig,
+	buildModelList,
+	getProviderBaseURLRaw,
+	getProviderApiKeyRaw,
+	withProvider,
+	withProviderModels,
+	getActiveConfigPath,
+	loadConfig,
+	saveConfig,
+	backupConfig,
+	resolveEnvReferences,
+} from './config';
 import type { OpencodeConfig, DiscoveredModel, ModelConfig } from './types';
 
 describe('updateProviderConfig', () => {
@@ -121,5 +136,80 @@ describe('raw provider getters', () => {
 		const v2 = { package: 'aisdk:@ai-sdk/openai-compatible', settings: { baseURL: '{env:B}', apiKey: 'plain' } };
 		expect(getProviderBaseURLRaw(v2)).toBe('{env:B}');
 		expect(getProviderApiKeyRaw(v2)).toBe('plain');
+	});
+});
+
+describe('withProvider', () => {
+	test('adds a provider without mutating the input (v1)', () => {
+		const config: OpencodeConfig = { provider: { a: { name: 'A' } } };
+		const next = withProvider(config, 'b', { name: 'B' });
+		expect(next.provider).toEqual({ a: { name: 'A' }, b: { name: 'B' } });
+		expect(config.provider).toEqual({ a: { name: 'A' } });
+		expect(next).not.toBe(config);
+	});
+
+	test('deletes a provider when given undefined (v1)', () => {
+		const config: OpencodeConfig = { provider: { a: { name: 'A' }, b: { name: 'B' } } };
+		const next = withProvider(config, 'a', undefined);
+		expect(next.provider).toEqual({ b: { name: 'B' } });
+		expect(config.provider).toEqual({ a: { name: 'A' }, b: { name: 'B' } });
+	});
+
+	test('writes to the v2 providers key', () => {
+		const config: OpencodeConfig = { providers: { a: { name: 'A' } } };
+		const next = withProvider(config, 'b', { name: 'B' });
+		expect(next.providers).toEqual({ a: { name: 'A' }, b: { name: 'B' } });
+		expect(next.provider).toBeUndefined();
+	});
+});
+
+describe('withProviderModels', () => {
+	test('replaces a provider\'s models without mutating the input', () => {
+		const config: OpencodeConfig = {
+			provider: { a: { name: 'A', models: { m1: { id: 'm1' }, m2: { id: 'm2' } } } },
+		};
+		const next = withProviderModels(config, 'a', (models) => {
+			const { m1: _removed, ...rest } = models;
+			return rest;
+		});
+		expect(next.provider?.a?.models).toEqual({ m2: { id: 'm2' } });
+		expect(next.provider?.a?.name).toBe('A');
+		expect(config.provider?.a?.models).toEqual({ m1: { id: 'm1' }, m2: { id: 'm2' } });
+	});
+
+	test('creates the provider entry when missing', () => {
+		const next = withProviderModels({}, 'x', () => ({ m: { id: 'm' } }));
+		expect(next.provider).toEqual({ x: { models: { m: { id: 'm' } } } });
+	});
+});
+
+describe('config file location', () => {
+	test('prefers opencode.jsonc when it exists, and saves back to it', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'olma-test-'));
+		writeFileSync(join(dir, 'opencode.jsonc'), '{\n  // comment\n  "model": "old"\n}\n');
+		expect(getActiveConfigPath(dir)).toBe(join(dir, 'opencode.jsonc'));
+
+		const config = loadConfig(dir);
+		expect(config.model).toBe('old');
+
+		const backup = backupConfig(dir);
+		expect(backup).toStartWith(join(dir, 'opencode.jsonc.backup.'));
+
+		saveConfig({ ...config, model: 'new' }, dir);
+		expect(JSON.parse(readFileSync(join(dir, 'opencode.jsonc'), 'utf-8')).model).toBe('new');
+		expect(readdirSync(dir)).not.toContain('opencode.json');
+	});
+
+	test('falls back to opencode.json when no jsonc exists', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'olma-test-'));
+		expect(getActiveConfigPath(dir)).toBe(join(dir, 'opencode.json'));
+		saveConfig({ model: 'x' }, dir);
+		expect(JSON.parse(readFileSync(join(dir, 'opencode.json'), 'utf-8')).model).toBe('x');
+	});
+});
+
+describe('resolveEnvReferences', () => {
+	test('resolves multiple references from a supplied env', () => {
+		expect(resolveEnvReferences('{env:HOST}:{env:PORT}', { HOST: 'h', PORT: '1' })).toBe('h:1');
 	});
 });
